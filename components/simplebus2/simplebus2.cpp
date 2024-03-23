@@ -82,14 +82,7 @@ namespace esphome
         }
       }
 
-      if (this->message_started)
-      {
-        if (micros() - this->last_bus_bit_time > 1500)
-        {
-          this->activate_interrupt(true);
-        }
-      }
-      else
+      if (!this->message_started || (this->message_started && micros() - this->last_bus_bit_time > 1500))
       {
         this->activate_interrupt(true);
       }
