@@ -258,11 +258,6 @@ action:
                 target:
                   entity_id:
                     - timer.auto_open_door_timer
-      - service: esphome.doorbell_bridge_simplebus2_send
-        data:
-          command: 51
-          address: 41
-        alias: Activate blinking light to indicate automatic function active
   - if:
       - condition: trigger
         id:
@@ -273,11 +268,6 @@ action:
           entity_id: input_select.auto_open_door
         data:
           option: Off
-      - service: esphome.doorbell_bridge_simplebus2_send
-        data:
-          command: 52
-          address: 41
-        alias: Deactivate blinking light to indicate automatic function active
     alias: Reset select when timer ends
   - alias: Doorbell is triggered
     if:
