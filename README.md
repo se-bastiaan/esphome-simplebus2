@@ -145,3 +145,137 @@ In this case, a delay of at least 200ms must be inserted between the commands (o
 	- simplebus2.send:
 	    command: 16
 	    address: 1
+
+Useful automations in Home Assistant
+=====================================
+
+### Logging events in the logbook
+```
+alias: Log simplebus2 events
+description: "Log all events coming from the simplebus2 bridge"
+trigger:
+  - platform: event
+    event_type: esphome.simplebus2
+condition: []
+action:
+  - service: logbook.log
+    metadata: {}
+    data:
+      name: Simplebus2 event
+      entity_id: binary_sensor.doorbell_bridge_incoming_call
+      message: |
+        {{ trigger.event.data.command }} - {{ trigger.event.data.address }}
+mode: parallel
+max: 10
+```
+
+### Sending a push notification to your phone
+```
+alias: Pushnotification Doorbell
+description: "Send a push notification to the Home Assistant app when someone rings the doorbell"
+trigger:
+  - platform: state
+    entity_id:
+      - binary_sensor.utility_doorbell_bridge_incoming_call # You could also do this using an event instead
+    from: "off"
+    to: "on"
+condition:
+  - condition: template
+    value_template: >-
+      {{ (as_timestamp(now()) -
+      as_timestamp(state_attr('automation.pushnotification_doorbell',
+      'last_triggered') | default(0)) | int > 5)}}
+action:
+  - service: notify.mobile_app
+    metadata: {}
+    data:
+      message: There is someone at the door!
+mode: single
+```
+
+### Automatically open the door
+
+This automation requires two helper entities: 
+ - `input_select.auto_open_door` is a selection entity with options for how long the door should be automatically opened
+ - `timer.auto_open_door_timer` is a timer that will be set when a selection is chosen, it will trigger the automation again to end the behaviour
+
+```
+alias: Automatically open the door when someone rings the bell
+description: "Imitate comelit doctor mode"
+trigger:
+  - platform: state
+    entity_id:
+      - input_select.auto_open_door
+    id: state_select
+  - platform: state
+    entity_id:
+      - timer.auto_open_door_timer
+    to: idle
+    id: timer_ended
+  - platform: state
+    entity_id:
+      - binary_sensor.utility_doorbell_bridge_incoming_call
+    id: ring
+    to: "on"
+condition: []
+action:
+  - if:
+      - condition: trigger
+        id:
+          - state_select
+    then:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_select.auto_open_door
+                state: 15 minutes
+            sequence:
+              - service: timer.start
+                metadata: {}
+                data:
+                  duration: "15:00:00"
+                target:
+                  entity_id: timer.auto_open_door_timer
+          ... any other options
+          - conditions:
+              - condition: state
+                entity_id: input_select.auto_open_door
+                state: 8 hours
+            sequence:
+              - service: timer.start
+                metadata: {}
+                data:
+                  duration: "480:00:00"
+                target:
+                  entity_id: timer.auto_open_door_timer
+  - if:
+      - condition: trigger
+        id:
+          - timer
+    then:
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.auto_open_door
+        data:
+          option: Off
+    alias: Reset select when timer ends
+  - alias: Doorbell is triggered
+    if:
+      - condition: trigger
+        id:
+          - ring
+      - condition: state
+        entity_id: timer.auto_open_door_timer
+        state: active
+    then:
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 1
+          milliseconds: 0
+	  - service: button.press
+		  target:
+		  entity_id: button.utility_doorbell_bridge_open_door
+mode: single
+
+```
