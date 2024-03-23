@@ -125,14 +125,15 @@ The action can be easily inserted into a button type entity:
 You can create a Home Assistant service, which can easily be invoked by an automation or script:
 
 	api:
-	  encryption:
-	    key: "xxxxxxxxxxxxxxxxxxx"
-	  services:
-	    - service: open_door
-	      then:
-	        - simplebus2.send:
-	            command: 16
-	            address: 5
+    services:
+      - service: simplebus2_send
+        variables:
+          command: int
+          address: int
+        then:
+          - simplebus2.send:
+              command: !lambda 'return command;'
+              address: !lambda 'return address;'
 
 ### Sending multiple commands:
 There are some special configurations that require sending 2 or more commands consecutively on the bus.
