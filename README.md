@@ -249,6 +249,15 @@ action:
                   duration: "480:00:00"
                 target:
                   entity_id: timer.auto_open_door_timer
+          - conditions:
+              - condition: state
+                entity_id: input_select.deur_openen
+                state: Off
+            sequence:
+              - service: timer.finish # This should immediately trigger this automation again
+                target:
+                  entity_id:
+                    - timer.auto_open_door_timer
       - service: esphome.doorbell_bridge_simplebus2_send
         data:
           command: 51
@@ -257,7 +266,7 @@ action:
   - if:
       - condition: trigger
         id:
-          - timer
+          - timer_ended
     then:
       - service: input_select.select_option
         target:
@@ -287,6 +296,7 @@ action:
 	  - service: button.press
 		  target:
 		  entity_id: button.utility_doorbell_bridge_open_door
-mode: single
+mode: queued
+max: 2
 
 ```
