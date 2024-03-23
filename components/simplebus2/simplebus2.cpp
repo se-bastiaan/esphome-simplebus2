@@ -42,7 +42,7 @@ namespace esphome
 
       s.rx_pin = this->rx_pin->to_isr();
 
-      this->rx_pin->attach_interrupt(Simplebus2ComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_RISING_EDGE);
+      this->activate_interrupt(true);
 
       for (auto &listener : listeners_)
       {
@@ -80,6 +80,18 @@ namespace esphome
         {
           listener->turn_off(&listener->timer);
         }
+      }
+
+      if (this->message_started)
+      {
+        if (micros() - this->last_bus_bit_time > 1500)
+        {
+          this->activate_interrupt(true);
+        }
+      }
+      else
+      {
+        this->activate_interrupt(true);
       }
 
       if (this->store_.pin_triggered)
@@ -152,17 +164,21 @@ namespace esphome
       {
         switch (pause_time)
         {
-        case 2000 ... 4900:
+        case 2400 ... 3700:
         {
           ESP_LOGD(TAG, "0 - %i", pause_time);
           this->message_bit_array[this->message_position] = 0;
+          this->last_bus_bit_time = micros();
+          this->activate_interrupt(false);
           this->message_position++;
           break;
         }
-        case 5000 ... 9000:
+        case 5000 ... 7200:
         {
           ESP_LOGD(TAG, "1 - %i", pause_time);
           this->message_bit_array[this->message_position] = 1;
+          this->last_bus_bit_time = micros();
+          this->activate_interrupt(false);
           this->message_position++;
           break;
         }
@@ -240,7 +256,7 @@ namespace esphome
     {
       ESP_LOGD(TAG, "Sending command %i, address %i", data.command, data.address);
 
-      this->rx_pin->detach_interrupt();
+      this->activate_interrupt(false);
 
       int msgArray[18];
       int checksum = 0;
@@ -258,7 +274,21 @@ namespace esphome
         send_message(msgArray[i]);
       }
       send_pwm();
-      this->rx_pin->attach_interrupt(Simplebus2ComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_RISING_EDGE);
+      this->activate_interrupt(true);
+    }
+
+    void Simplebus2Component::activate_interrupt(bool activate)
+    {
+      if (activate && !this->interrupt_attached)
+      {
+        this->interrupt_attached = true;
+        this->rx_pin->attach_interrupt(Simplebus2ComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
+      }
+      else if (this->interrupt_attached)
+      {
+        this->interrupt_attached = false;
+        this->rx_pin->detach_interrupt();
+      }
     }
 
     void Simplebus2Component::set_pot_resistance(int i2cNumber, float resistance)

@@ -271,7 +271,7 @@ action:
       - delay:
           hours: 0
           minutes: 0
-          seconds: 1
+          seconds: 2 # Without some delay the send signal will probably not get through
           milliseconds: 0
 	  - service: button.press
 		  target:

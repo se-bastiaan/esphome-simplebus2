@@ -80,6 +80,8 @@ namespace esphome
       uint32_t idle_us{10000};
 
       uint32_t pause_time = 0;
+      unsigned long last_bus_bit_time = 0;
+      bool interrupt_attached = false;
       int message_bit_array [18];
       volatile int message_position = 0;
       volatile bool message_started = false;
@@ -93,6 +95,7 @@ namespace esphome
       void set_pot_resistance(int i2cNumber, float resistance);
       void set_opv_gain(int gain);
       void set_comparator_voltage_limit(int voltage);
+      void activate_interrupt(bool activate);
 
       void process_interrupt();
       void int_to_binary(unsigned int input, int start_pos, int no_of_bits, int *bits);
