@@ -32,8 +32,10 @@ namespace esphome
       ledcSetup(0, 25000, 8);
       ledcAttachPin(this->tx_pin->get_pin(), 0);
 
-      set_opv_gain(gain);
+      set_opv_gain(this->gain);
       set_comparator_voltage_limit(this->voltage_level);
+      get_pot_resistance(0);
+      get_pot_resistance(1);
 
       auto &s = this->store_;
       s.filter_us = this->filter_us;
@@ -284,33 +286,18 @@ namespace esphome
       }
     }
 
-    void Simplebus2Component::set_pot_resistance(int i2cNumber, float resistance)
+    void Simplebus2Component::set_pot_resistance(int i2cBus, float resistance)
     {
-      int sclPin = -1;
-      int sdaPin = -1;
-      switch (i2cNumber)
-      {
-      case 1: // Gain
-      {
-        sdaPin = SDA_1;
-        sclPin = SCL_1;
-        break;
-      }
-      case 2: // Voltage comparator
-      {
+      int sdaPin = SDA_1;
+      int sclPin = SCL_1;
+      if (i2cBus == 1) {
         sdaPin = SDA_2;
         sclPin = SCL_2;
-        break;
       }
-      default:
-      {
-        break;
-      }
-      }
+
+      // Reset sequence for the MCP4017
       Wire.begin(sdaPin, sclPin, I2C_FREQ);
-      Wire.write(0b111111111);
-      Wire.endTransmission(false);
-      Wire.write(0);
+      Wire.beginTransmission(0b111111111);
       Wire.endTransmission();
 
       if (resistance < 0 || resistance > MCP4017_MAX_RESISTANCE)
@@ -319,10 +306,30 @@ namespace esphome
       }
       byte value = round((float(resistance - 325) / float(MCP4017_MAX_RESISTANCE)) * 127.0);
 
+      ESP_LOGD(TAG, "Write value of MCP4017 %i: %i", i2cBus, value);
+
       Wire.beginTransmission(MCP4017_I2C_ADDRESS);
       Wire.write(value);
       Wire.endTransmission();
       Wire.end();
+    }
+
+    void Simplebus2Component::get_pot_resistance(int i2cBus)
+    {
+      int sdaPin = SDA_1;
+      int sclPin = SCL_1;
+      if (i2cBus == 1) {
+        sdaPin = SDA_2;
+        sclPin = SCL_2;
+      }
+
+      Wire.begin(sdaPin, sclPin, I2C_FREQ);
+      byte value = -1;
+      Wire.requestFrom(MCP4017_I2C_ADDRESS, 1);
+      Wire.readBytes(&value, 1);
+      Wire.end();
+
+      ESP_LOGD(TAG, "Current resistance of MCP4017 %i: %i", i2cBus, value);
     }
 
     // Set gain factor of the OPV
@@ -336,7 +343,7 @@ namespace esphome
       }
       float resistorValue = float(OPV_FIXED_GAIN_RESISTOR) / (gain - 1);
       ESP_LOGD(TAG, "Gain resistor value: %f", resistorValue);
-      set_pot_resistance(1, resistorValue);
+      set_pot_resistance(0, resistorValue);
     }
 
     // Set ref voltage of the comparator in [mV]
@@ -349,7 +356,7 @@ namespace esphome
       }
       float resistorValue = (float(voltage) * float(OPV_FIXED_GAIN_RESISTOR)) / (3300.0 - float(voltage));
       ESP_LOGD(TAG, "Voltage limit resistor value: %f", resistorValue);
-      set_pot_resistance(2, resistorValue);
+      set_pot_resistance(1, resistorValue);
     }
 
     void Simplebus2Component::int_to_binary(unsigned int input, int start_pos, int no_of_bits, int *bits)

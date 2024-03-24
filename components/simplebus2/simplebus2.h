@@ -93,6 +93,7 @@ namespace esphome
       std::vector<Simplebus2Listener *> listeners_{};
 
       void set_pot_resistance(int i2cNumber, float resistance);
+      void get_pot_resistance(int i2cNumber);
       void set_opv_gain(int gain);
       void set_comparator_voltage_limit(int voltage);
       void activate_interrupt(bool activate);
