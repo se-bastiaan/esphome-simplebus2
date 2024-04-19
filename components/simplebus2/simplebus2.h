@@ -80,8 +80,6 @@ namespace esphome
       uint32_t idle_us{10000};
 
       uint32_t pause_time = 0;
-      unsigned long last_bus_bit_time = 0;
-      bool interrupt_attached = false;
       int message_bit_array [18];
       volatile int message_position = 0;
       volatile bool message_started = false;

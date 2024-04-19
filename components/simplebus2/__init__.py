@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(Simplebus2),
             cv.Optional(CONF_GAIN, default=20): cv.int_,
-            cv.Optional(CONF_VOLTAGE_LEVEL, default=200): cv.All(
+            cv.Optional(CONF_VOLTAGE_LEVEL, default=600): cv.All(
                 cv.int_, cv.Range(min=100, max=1500)
             ),
             cv.Optional(CONF_RX_PIN, default=2): pins.internal_gpio_input_pullup_pin_schema,
