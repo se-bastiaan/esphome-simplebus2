@@ -158,7 +158,6 @@ namespace esphome
         {
           ESP_LOGD(TAG, "0 - %i", pause_time);
           this->message_bit_array[this->message_position] = 0;
-          this->last_bus_bit_time = micros();
           this->message_position++;
           break;
         }
