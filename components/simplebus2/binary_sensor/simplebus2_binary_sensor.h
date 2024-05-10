@@ -12,12 +12,17 @@ namespace esphome
     class Simplebus2BinarySensor : public binary_sensor::BinarySensor, public Simplebus2Listener
     {
     public:
-      void turn_on(uint32_t *timer, uint16_t auto_off) override;
-      void turn_off(uint32_t *timer) override;
+      void trigger(u_int16_t command, u_int16_t address) override;
+      void loop();
 
+      void set_command(uint16_t command) { this->command = command; }
+      void set_address(uint16_t address) { this->address = address; }
+      void set_auto_off(uint16_t auto_off) { this->auto_off = auto_off; }    
     protected:
+      uint32_t timer;
       uint16_t address;
       uint16_t command;
+      uint16_t auto_off;
     };
 
   }

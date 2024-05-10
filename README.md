@@ -1,6 +1,9 @@
 ESPHome Simplebus2
 ===================
 
+> [!WARNING]  
+> This component is experimental. It will currently not work using the same voltage level/gain settings as the official firmware. 
+
 The ``simplebus2`` component allows you to connect your [Simpebus2 bridge](https://github.com/Elektroarzt/simplebus2-mqtt-bridge) to Home Assistant via de native API. Inspired by both the original Simplebus2 MQTT bridge code and [comelit-esphome](https://github.com/mansellrace/comelit-esphome) (read: mashed the projects together so I could have the bridge running ESPHome)
 
 How to use:
@@ -31,8 +34,6 @@ Configuration variables:
 - **voltage_level** (int): See [Simpebus2 bridge](https://github.com/Elektroarzt/simplebus2-mqtt-bridge) documentation
 - **rx_pin** (*Optional*, pin): You do not need this as it is the correct pin for the bridge by default
 - **tx_pin** (*Optional*, pin): You do not need this as it is the correct pin for the bridge by default
-- **filter** (_Optional_,  [Time](https://esphome.io/guides/configuration-types#config-time)): Filter any pulses that are shorter than this. Useful for removing glitches from noisy signals. Defaults to `1000us`. 
--   **idle**  (_Optional_,  [Time](https://esphome.io/guides/configuration-types#config-time)): The amount of time that a signal should remain stable (i.e. not change) for it to be considered complete. Defaults to  `10ms`.
 - <a id="eventlist">**event**</a>  (_Optional_, string): The name of the event that will be generated on Home Assistant when receiving a command on the bus. For example, if  set to `simplebus2`, the event generated will be "esphome.simplebus2".
 Read more about how to use it in the [event section](#event)
 Default to `simplebus2`.
@@ -67,6 +68,30 @@ Configuration examples:
     Note:
     If you have friendly_name set for your device and you want 
     the sensor to use that name, you can set `name: None`.
+
+Text sensor
+===================
+
+You can configure a text sensor that will output the last received command on the bus.
+
+Configuration example:
+
+	text_sensor:
+	  - platform: simplebus2
+
+Number
+===================
+
+You can configure a number that will allow you to dynanmically configure the voltage level and gain settings.
+
+Configuration example:
+
+	number:
+    - platform: simplebus2
+      gain:
+        name: gain
+      voltage_level:
+        name: voltage level
 
 Event
 ========

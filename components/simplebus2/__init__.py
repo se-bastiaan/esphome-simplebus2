@@ -60,8 +60,6 @@ async def to_code(config):
 
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_voltage_level(config[CONF_VOLTAGE_LEVEL]))
-    cg.add(var.set_filter_us(config[CONF_FILTER]))
-    cg.add(var.set_idle_us(config[CONF_IDLE]))
     cg.add(var.set_event("esphome." + config[CONF_EVENT]))
 
 

@@ -5,11 +5,6 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#define SDA_1 6
-#define SCL_1 7
-#define SDA_2 9
-#define SCL_2 10
-
 #define MCP4017_MAX_RESISTANCE 100000
 #define MCP4017_I2C_ADDRESS 0x2F
 #define I2C_FREQ 100000
@@ -34,22 +29,14 @@ namespace esphome
 
       set_opv_gain(this->gain);
       set_comparator_voltage_limit(this->voltage_level);
-      get_pot_resistance(0);
-      get_pot_resistance(1);
 
       auto &s = this->store_;
-      s.filter_us = this->filter_us;
 
       this->high_freq_.start();
 
       s.rx_pin = this->rx_pin->to_isr();
 
       this->rx_pin->attach_interrupt(Simplebus2ComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_RISING_EDGE);
-
-      for (auto &listener : listeners_)
-      {
-        listener->turn_off(&listener->timer);
-      }
 
       ESP_LOGCONFIG(TAG, "Setup for Simplebus2 complete");
     }
@@ -61,8 +48,6 @@ namespace esphome
       LOG_PIN("  Pin TX: ", this->tx_pin);
       ESP_LOGCONFIG(TAG, "  Voltage level: %i", this->voltage_level);
       ESP_LOGCONFIG(TAG, "  Gain: %i", this->gain);
-      ESP_LOGCONFIG(TAG, "  Filter: %ius", this->filter_us);
-      ESP_LOGCONFIG(TAG, "  Idle:   %ius", this->idle_us);
       if (strcmp(this->event, "esphome.none") != 0)
       {
         ESP_LOGCONFIG(TAG, "  Event: %s", this->event);
@@ -75,13 +60,9 @@ namespace esphome
 
     void Simplebus2Component::loop()
     {
-      uint32_t now_millis = millis();
       for (auto &listener : listeners_)
       {
-        if (listener->timer && now_millis > listener->timer)
-        {
-          listener->turn_off(&listener->timer);
-        }
+        listener->loop();
       }
 
       if (this->store_.pin_triggered)
@@ -89,7 +70,7 @@ namespace esphome
         this->process_interrupt();
       }
 
-      if (this->message_code > 0 && this->message_code != 63 && this->message_addr != 255)
+      if (this->message_code > 0)
       {
         ESP_LOGD(TAG, "Received command %i, address %i", this->message_code, this->message_addr);
 
@@ -101,11 +82,7 @@ namespace esphome
         }
         for (auto &listener : listeners_)
         {
-          if (listener->command == this->message_code && listener->address == this->message_addr)
-          {
-            ESP_LOGD(TAG, "Binary sensor fired! %i %i", listener->command, listener->address);
-            listener->turn_on(&listener->timer, listener->auto_off);
-          }
+          listener->trigger(this->message_code, this->message_addr);
         }
 
         this->message_code = -1;
@@ -114,28 +91,19 @@ namespace esphome
 
     void IRAM_ATTR HOT Simplebus2ComponentStore::gpio_intr(Simplebus2ComponentStore *arg)
     {
-      unsigned long interrupt_time = micros();
-
-      const uint32_t time_since_change = interrupt_time - arg->last_interrupt_time;
-      if (time_since_change <= arg->filter_us)
-      {
-        return;
-      }
-
+      ESP_LOGD(TAG, "gpio_intr");
       if (!arg->pin_triggered)
       {
         arg->pin_triggered = true;
       }
-
-      arg->last_interrupt_time = interrupt_time;
     }
 
     void Simplebus2Component::process_interrupt()
     {
       auto &s = this->store_;
-
-      const uint32_t now = micros();
-      uint32_t pause_time = now - this->pause_time;
+      
+      unsigned long now = micros();
+      unsigned long pause_time = now - this->last_pause_time;
 
       if (pause_time > 18000 && this->message_started)
       {
@@ -178,7 +146,6 @@ namespace esphome
       if (this->message_position == 18)
       {
         this->message_started = false;
-        this->message_position = 0;
 
         unsigned int message_code = binary_to_int(0, 6, this->message_bit_array);
         ESP_LOGD(TAG, "Message Code %u", message_code);
@@ -202,7 +169,7 @@ namespace esphome
         }
       }
 
-      this->pause_time = now;
+      this->last_pause_time = now;
       s.pin_triggered = false;
     }
 
@@ -260,54 +227,40 @@ namespace esphome
         send_message(msgArray[i]);
       }
       send_pwm();
-      
+
       this->rx_pin->attach_interrupt(Simplebus2ComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_RISING_EDGE);
     }
 
-    void Simplebus2Component::set_pot_resistance(int i2cBus, float resistance)
+    void Simplebus2Component::set_pot_resistance(boolean isGain, float resistance)
     {
-      int sdaPin = SDA_1;
-      int sclPin = SCL_1;
-      if (i2cBus == 1) {
-        sdaPin = SDA_2;
-        sclPin = SCL_2;
+      if (resistance < 0 || resistance > MCP4017_MAX_RESISTANCE)
+      {
+        return;
       }
+
+      // pins for gain
+      int sdaPin = 6;
+      int sclPin = 7;
+      if (!isGain)
+      {
+        // pins for voltage comparator
+        sdaPin = 9;
+        sclPin = 10;
+      }
+
+      int value = round((float((resistance - 325.0) / float(MCP4017_MAX_RESISTANCE)) * 100.0) * 127.0);
 
       // Reset sequence for the MCP4017
       Wire.begin(sdaPin, sclPin, I2C_FREQ);
       Wire.beginTransmission(0b111111111);
       Wire.endTransmission();
 
-      if (resistance < 0 || resistance > MCP4017_MAX_RESISTANCE)
-      {
-        return;
-      }
-      byte value = round((float(resistance - 325) / float(MCP4017_MAX_RESISTANCE)) * 127.0);
-
-      ESP_LOGD(TAG, "Write value of MCP4017 %i: %i", i2cBus, value);
+      ESP_LOGD(TAG, "Write value of MCP4017 %s: %i", (isGain ? "gain" : "volt."), value);
 
       Wire.beginTransmission(MCP4017_I2C_ADDRESS);
       Wire.write(value);
       Wire.endTransmission();
       Wire.end();
-    }
-
-    void Simplebus2Component::get_pot_resistance(int i2cBus)
-    {
-      int sdaPin = SDA_1;
-      int sclPin = SCL_1;
-      if (i2cBus == 1) {
-        sdaPin = SDA_2;
-        sclPin = SCL_2;
-      }
-
-      Wire.begin(sdaPin, sclPin, I2C_FREQ);
-      byte value = -1;
-      Wire.requestFrom(MCP4017_I2C_ADDRESS, 1);
-      Wire.readBytes(&value, 1);
-      Wire.end();
-
-      ESP_LOGD(TAG, "Current resistance of MCP4017 %i: %i", i2cBus, value);
     }
 
     // Set gain factor of the OPV
@@ -321,7 +274,7 @@ namespace esphome
       }
       float resistorValue = float(OPV_FIXED_GAIN_RESISTOR) / (gain - 1);
       ESP_LOGD(TAG, "Gain resistor value: %f", resistorValue);
-      set_pot_resistance(0, resistorValue);
+      set_pot_resistance(true, resistorValue);
     }
 
     // Set ref voltage of the comparator in [mV]
@@ -334,7 +287,7 @@ namespace esphome
       }
       float resistorValue = (float(voltage) * float(OPV_FIXED_GAIN_RESISTOR)) / (3300.0 - float(voltage));
       ESP_LOGD(TAG, "Voltage limit resistor value: %f", resistorValue);
-      set_pot_resistance(1, resistorValue);
+      set_pot_resistance(false, resistorValue);
     }
 
     void Simplebus2Component::int_to_binary(unsigned int input, int start_pos, int no_of_bits, int *bits)

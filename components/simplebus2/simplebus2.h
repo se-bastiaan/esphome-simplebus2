@@ -22,29 +22,17 @@ namespace esphome
     class Simplebus2Listener
     {
     public:
-      void set_command(uint16_t command) { this->command = command; }
-      void set_address(uint16_t address) { this->address = address; }
-      void set_auto_off(uint16_t auto_off) { this->auto_off = auto_off; }
-
-      virtual void turn_on(uint32_t *timer, uint16_t auto_off){};
-      virtual void turn_off(uint32_t *timer){};
-      uint32_t timer;
-      // private:
-      uint16_t address;
-      uint16_t command;
-      uint16_t auto_off;
+      virtual void trigger(u_int16_t command, u_int16_t address);
+      void loop() {}
     };
 
     struct Simplebus2ComponentStore
     {
       static void gpio_intr(Simplebus2ComponentStore *arg);
 
-      /// Time of last interrupt
-      volatile uint32_t last_interrupt_time;
       // If pin triggered
       volatile bool pin_triggered = false;
 
-      uint16_t filter_us{500};
       ISRInternalGPIOPin rx_pin;
     };
 
@@ -65,9 +53,12 @@ namespace esphome
       void set_tx_pin(InternalGPIOPin *pin) { this->tx_pin = pin; }
       void set_gain(int gain) { this->gain = gain; }
       void set_voltage_level(int voltage_level) { this->voltage_level = voltage_level; }
-      void set_filter_us(uint16_t filter_us) { this->filter_us = filter_us; }
-      void set_idle_us(uint32_t idle_us) { this->idle_us = idle_us; }
+      int get_gain() { return this->gain; }
+      int get_voltage_level() { return this->voltage_level; }
       void set_event(const char *event) { this->event = event; }
+
+      void set_opv_gain(int gain);
+      void set_comparator_voltage_limit(int voltage);
 
     protected:
       InternalGPIOPin *rx_pin;
@@ -76,10 +67,8 @@ namespace esphome
       int gain;
       const char *event;
       Simplebus2ComponentStore store_;
-      uint16_t filter_us{10};
-      uint32_t idle_us{10000};
 
-      uint32_t pause_time = 0;
+      unsigned long last_pause_time = 0;
       int message_bit_array [18];
       volatile int message_position = 0;
       volatile bool message_started = false;
@@ -90,10 +79,7 @@ namespace esphome
       std::vector<uint16_t> temp_;
       std::vector<Simplebus2Listener *> listeners_{};
 
-      void set_pot_resistance(int i2cNumber, float resistance);
-      void get_pot_resistance(int i2cNumber);
-      void set_opv_gain(int gain);
-      void set_comparator_voltage_limit(int voltage);
+      void set_pot_resistance(bool isGain, float resistance);
       void activate_interrupt(bool activate);
 
       void process_interrupt();
